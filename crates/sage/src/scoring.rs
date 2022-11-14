@@ -29,15 +29,6 @@ struct PreScore {
     precursor_charge: u8,
 }
 
-impl Ord for PreScore {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        other
-            .matched
-            .cmp(&self.matched)
-            .then(other.peptide.cmp(&self.peptide))
-    }
-}
-
 /// Store preliminary scores & stats for first pass search for a query spectrum
 #[derive(Clone, Default)]
 struct InitialHits {
