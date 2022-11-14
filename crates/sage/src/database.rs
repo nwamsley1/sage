@@ -3,6 +3,7 @@ use crate::fasta::Fasta;
 use crate::ion_series::{IonSeries, Kind};
 use crate::mass::{Tolerance, NEUTRON};
 use crate::peptide::Peptide;
+use fnv::FnvHashMap;
 use log::error;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -145,7 +146,7 @@ impl Parameters {
         &self,
         fasta: &Fasta,
         enzyme: &EnzymeParameters,
-    ) -> (Vec<Peptide>, HashMap<String, Vec<String>>) {
+    ) -> (Vec<Peptide>, FnvHashMap<String, Vec<String>>) {
         // Generate all tryptic peptide sequences, including reversed (decoy)
         // and missed cleavages, if applicable.
         let digests = fasta.digest(enzyme);
@@ -176,7 +177,7 @@ impl Parameters {
         let peptide_graph = digests
             .into_par_iter()
             .map(|(digest, proteins)| (digest.sequence, proteins))
-            .collect::<HashMap<String, Vec<String>>>();
+            .collect::<FnvHashMap<String, Vec<String>>>();
 
         (target_decoys, peptide_graph)
     }
@@ -318,7 +319,7 @@ pub struct IndexedDatabase {
     /// Keep a list of potential (AA, mass) modifications for RT prediction
     pub potential_mods: Vec<(char, f32)>,
     pub bucket_size: usize,
-    peptide_graph: HashMap<String, Vec<String>>,
+    peptide_graph: FnvHashMap<String, Vec<String>>,
 }
 
 impl IndexedDatabase {

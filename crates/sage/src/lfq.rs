@@ -1,6 +1,6 @@
+use fnv::{FnvHashMap, FnvHashSet};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
 
 use crate::database::{binary_search_slice, PeptideIx};
 use crate::mass::{Tolerance, NEUTRON};
@@ -132,7 +132,7 @@ impl LfqIndex {
             .flat_map_iter(|spectrum| {
                 let query = self.rt_slice(spectrum.scan_start_time, 1.0);
                 spectrum.peaks.iter().flat_map(move |peak| {
-                    let mut seen = HashSet::new();
+                    let mut seen = FnvHashSet::default();
                     // This might return multiple LfqEntries for the same peptide,
                     // since multiple MS2 scans can occur in the same RT window -
                     // we need to deduplicate so that proper quantitation can be done
@@ -158,7 +158,7 @@ impl LfqIndex {
             })
             .collect::<Vec<_>>();
 
-        let mut scores: HashMap<PeptideIx, Vec<_>> = HashMap::new();
+        let mut scores: FnvHashMap<PeptideIx, Vec<_>> = FnvHashMap::default();
         for quant in temp {
             scores.entry(quant.peptide_ix).or_default().push(quant);
         }
@@ -168,7 +168,7 @@ impl LfqIndex {
 
         // Iterate through list of quantification points, considering
         // all MS1 XICs for a given peptide (e.g. aggregating across PSMs)
-        let map: HashMap<PeptideIx, Area> = scores
+        let map: FnvHashMap<PeptideIx, Area> = scores
             .par_iter_mut()
             .filter(|(_, scores)| scores.len() > 2)
             .map(|(peptide, scores)| {

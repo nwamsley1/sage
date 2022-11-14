@@ -1,11 +1,12 @@
-use std::ops::AddAssign;
-
 use crate::database::{binary_search_slice, IndexedDatabase, PeptideIx, Theoretical};
 use crate::ion_series::{IonSeries, Kind};
 use crate::mass::{Tolerance, NEUTRON, PROTON};
 use crate::peptide::Peptide;
 use crate::spectrum::{Peak, Precursor, ProcessedSpectrum};
+use fnv::FnvHashMap;
 use serde::Serialize;
+use std::hash::BuildHasherDefault;
+use std::ops::AddAssign;
 
 /// Structure to hold temporary scores
 #[derive(Copy, Clone, Default, Debug)]
@@ -21,11 +22,20 @@ struct Score {
 }
 
 /// Preliminary score - # of matched peaks for each candidate peptide
-#[derive(Copy, Clone, Default, Debug)]
+#[derive(Copy, Clone, Default, Debug, PartialEq, Eq, PartialOrd)]
 struct PreScore {
     peptide: PeptideIx,
     matched: u16,
     precursor_charge: u8,
+}
+
+impl Ord for PreScore {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        other
+            .matched
+            .cmp(&self.matched)
+            .then(other.peptide.cmp(&self.peptide))
+    }
 }
 
 /// Store preliminary scores & stats for first pass search for a query spectrum
@@ -42,8 +52,7 @@ impl AddAssign<InitialHits> for InitialHits {
         self.matched_peaks += rhs.matched_peaks;
         self.scored_candidates += rhs.scored_candidates;
         // Add the non-zero matches into the accumulator
-        self.preliminary
-            .extend(rhs.preliminary.into_iter().take(rhs.scored_candidates));
+        self.preliminary.extend(rhs.preliminary.into_iter())
     }
 }
 
@@ -224,39 +233,41 @@ impl<'db> Scorer<'db> {
             self.max_isotope_err,
         );
 
+        let capacity = (candidates.pre_idx_hi - candidates.pre_idx_lo) / 8;
         let max_fragment_charge = self.max_fragment_charge(precursor_charge);
 
-        // Allocate space for all potential candidates - many potential candidates
-        let potential = candidates.pre_idx_hi - candidates.pre_idx_lo + 1;
-        let mut hits = InitialHits {
-            matched_peaks: 0,
-            scored_candidates: 0,
-            preliminary: vec![PreScore::default(); potential],
-        };
+        let mut matched_peaks = 0;
+
+        let mut scores: FnvHashMap<PeptideIx, PreScore> =
+            fnv::FnvHashMap::with_capacity_and_hasher(capacity, BuildHasherDefault::default());
 
         for peak in query.peaks.iter() {
             for charge in 1..max_fragment_charge {
                 let mass = peak.mass * charge as f32;
                 for frag in candidates.page_search(mass) {
-                    let idx = frag.peptide_index.0 as usize - candidates.pre_idx_lo;
-                    let mut sc = &mut hits.preliminary[idx];
-                    if sc.matched == 0 {
-                        hits.scored_candidates += 1;
-                        sc.precursor_charge = precursor_charge;
-                    }
+                    let mut sc = scores.entry(frag.peptide_index).or_default();
+                    sc.precursor_charge = precursor_charge;
                     sc.peptide = frag.peptide_index;
                     sc.matched += 1;
-                    hits.matched_peaks += 1;
+                    matched_peaks += 1;
                 }
             }
         }
-        if hits.matched_peaks == 0 {
-            return hits;
-        }
+
         // Sort the preliminary scoring vector from high to low number of matched peaks
-        hits.preliminary
-            .sort_unstable_by(|a, b| b.matched.cmp(&a.matched));
-        hits
+        let mut preliminary = scores
+            .into_values()
+            .filter(|sc| sc.matched >= 2)
+            .collect::<Vec<_>>();
+
+        preliminary
+            .sort_unstable_by(|a, b| b.matched.cmp(&a.matched).then(b.peptide.cmp(&a.peptide)));
+
+        InitialHits {
+            matched_peaks,
+            scored_candidates: preliminary.len(),
+            preliminary,
+        }
     }
 
     /// Score a single [`ProcessedSpectrum`] against the database
@@ -300,7 +311,6 @@ impl<'db> Scorer<'db> {
         let mut score_vector = hits
             .preliminary
             .iter()
-            .filter(|score| score.peptide != PeptideIx::default())
             .take(n_calculate)
             .map(|pre| self.score_candidate(query, pre.precursor_charge, pre.peptide))
             .filter(|s| (s.matched_b + s.matched_y) >= 2)
