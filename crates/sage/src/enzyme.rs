@@ -109,7 +109,8 @@ impl Enzyme {
             "$" => Some(Enzyme {
                 regex: Regex::new("$").unwrap(),
                 skip_suffix: None,
-                c_terminal,
+                // Allowing this to be set to false could cause unexpected behavior
+                c_terminal: true,
             }),
             _ => Some(Enzyme {
                 regex: Regex::new(&format!("[{}]", cleave)).unwrap(),
