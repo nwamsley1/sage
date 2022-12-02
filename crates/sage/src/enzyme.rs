@@ -149,7 +149,7 @@ impl EnzymeParameters {
                 // Perform a non-specific digest
                 let mut v = Vec::new();
                 for len in self.min_len..=self.max_len {
-                    for i in 0..=sequence.len() - len {
+                    for i in 0..=sequence.len().saturating_sub(len) {
                         v.push(i..i + len)
                     }
                 }
@@ -162,9 +162,17 @@ impl EnzymeParameters {
         let n = sequence.len();
         let mut digests = Vec::new();
         let sites = self.cleavage_sites(sequence);
-        for cleavage in 1..=(1 + self.missed_cleavages) {
+        // Allowing missed_cleavages with non-specific digest causes OOB panics
+        // in the below indexing code
+        let missed_cleavages = match self.enyzme {
+            None => 0,
+            _ => self.missed_cleavages,
+        };
+
+        for cleavage in 1..=(1 + missed_cleavages) {
             // Generate missed cleavages
             for win in sites.windows(cleavage as usize) {
+                dbg!(win);
                 let sequence = &sequence[win[0].start..win[cleavage as usize - 1].end];
                 let len = sequence.len();
 
