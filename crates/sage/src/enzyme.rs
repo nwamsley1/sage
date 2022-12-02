@@ -77,7 +77,7 @@ pub struct EnzymeParameters {
     pub min_len: usize,
     /// Inclusive
     pub max_len: usize,
-    pub enyzme: Enzyme,
+    pub enyzme: Option<Enzyme>,
 }
 
 pub struct Enzyme {
@@ -85,12 +85,14 @@ pub struct Enzyme {
     skip_suffix: Option<char>,
     // Regex for matching cleavage sites
     regex: Regex,
+    // Cleave at c-terminal?
+    c_terminal: bool,
 }
 
 impl Enzyme {
-    pub fn new(cleave: &str, skip_suffix: Option<char>) -> Self {
+    pub fn new(cleave: &str, skip_suffix: Option<char>, c_terminal: bool) -> Option<Self> {
         assert!(
-            cleave.chars().all(|x| VALID_AA.contains(&x)),
+            cleave.chars().all(|x| VALID_AA.contains(&x)) || cleave == "$",
             "Enzyme cleavage sequence contains non-amino acid characters: {}",
             cleave
         );
@@ -101,20 +103,31 @@ impl Enzyme {
             skip_suffix.unwrap(),
         );
 
-        Enzyme {
-            skip_suffix,
-            regex: Regex::new(&format!("[{}]", cleave)).unwrap(),
+        // At this point, cleave can be three things: empty, "$", or a string of valid AA's
+        match cleave {
+            "" => None,
+            "$" => Some(Enzyme {
+                regex: Regex::new("$").unwrap(),
+                skip_suffix: None,
+                c_terminal,
+            }),
+            _ => Some(Enzyme {
+                regex: Regex::new(&format!("[{}]", cleave)).unwrap(),
+                skip_suffix,
+                c_terminal,
+            }),
         }
     }
-}
 
-impl EnzymeParameters {
     fn cleavage_sites(&self, sequence: &str) -> Vec<std::ops::Range<usize>> {
         let mut ranges = Vec::new();
         let mut left = 0;
-        for mat in self.enyzme.regex.find_iter(sequence) {
-            let right = mat.end();
-            if let Some(skip) = self.enyzme.skip_suffix {
+        for mat in self.regex.find_iter(sequence) {
+            let right = match self.c_terminal {
+                true => mat.end(),
+                false => mat.start(),
+            };
+            if let Some(skip) = self.skip_suffix {
                 if right < sequence.len() && sequence[right..].starts_with(skip) {
                     continue;
                 }
@@ -124,6 +137,24 @@ impl EnzymeParameters {
         }
         ranges.push(left..sequence.len());
         ranges
+    }
+}
+
+impl EnzymeParameters {
+    fn cleavage_sites(&self, sequence: &str) -> Vec<std::ops::Range<usize>> {
+        match &self.enyzme {
+            Some(enzyme) => enzyme.cleavage_sites(sequence),
+            None => {
+                // Perform a non-specific digest
+                let mut v = Vec::new();
+                for len in self.min_len..=self.max_len {
+                    for i in 0..=sequence.len() - len {
+                        v.push(i..i + len)
+                    }
+                }
+                v
+            }
+        }
     }
 
     pub fn digest(&self, sequence: &str) -> Vec<Digest> {
@@ -143,7 +174,7 @@ impl EnzymeParameters {
                     (false, false) => Position::Internal,
                 };
 
-                if len >= self.min_len && len <= self.max_len {
+                if len >= self.min_len && len <= self.max_len && len > 0 {
                     digests.push(Digest {
                         sequence: sequence.into(),
                         missed_cleavages: cleavage - 1,
@@ -169,7 +200,7 @@ mod test {
             min_len: 2,
             max_len: 50,
             missed_cleavages: 0,
-            enyzme: Enzyme::new("KR", Some('P')),
+            enyzme: Enzyme::new("KR", Some('P'), true),
         };
 
         let sequence = "MADEEKMADEEK";
@@ -199,7 +230,7 @@ mod test {
             min_len: 2,
             max_len: 50,
             missed_cleavages: 0,
-            enyzme: Enzyme::new("KR", Some('P')),
+            enyzme: Enzyme::new("KR", Some('P'), true),
         };
 
         assert_eq!(
@@ -232,7 +263,7 @@ mod test {
             min_len: 0,
             max_len: 50,
             missed_cleavages: 1,
-            enyzme: Enzyme::new("KR", Some('P')),
+            enyzme: Enzyme::new("KR", Some('P'), true),
         };
 
         assert_eq!(
@@ -269,7 +300,7 @@ mod test {
             min_len: 0,
             max_len: 50,
             missed_cleavages: 2,
-            enyzme: Enzyme::new("KR", Some('P')),
+            enyzme: Enzyme::new("KR", Some('P'), true),
         };
 
         assert_eq!(
@@ -297,7 +328,28 @@ mod test {
             min_len: 2,
             max_len: 50,
             missed_cleavages: 0,
-            enyzme: Enzyme::new("KR", None),
+            enyzme: Enzyme::new("KR", None, true),
+        };
+
+        assert_eq!(
+            expected,
+            tryp.digest(sequence)
+                .into_iter()
+                .map(|d| d.sequence)
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn test_asp_N() {
+        let sequence = "MADEEKLPPGWEKRMSRSSGRVYYFNHITNASQWERPSGNW";
+        let expected = vec!["MA", "DEEKLPPGWEKRMSRSSGRVYYFNHITNASQWERPSGNW"];
+
+        let tryp = EnzymeParameters {
+            min_len: 1,
+            max_len: 50,
+            missed_cleavages: 0,
+            enyzme: Enzyme::new("D", None, false),
         };
 
         assert_eq!(
@@ -326,7 +378,83 @@ mod test {
             min_len: 1,
             max_len: 50,
             missed_cleavages: 0,
-            enyzme: Enzyme::new("FYWL", None),
+            enyzme: Enzyme::new("FYWL", None, true),
+        };
+
+        assert_eq!(
+            expected,
+            tryp.digest(sequence)
+                .into_iter()
+                .map(|d| d.sequence)
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn nonspecific_digest_5() {
+        let sequence = "MADEEKLPPGWEKRMSRSSGRVYYFNHITNASQWERPSGNW";
+
+        let expected = sequence
+            .as_bytes()
+            .windows(5)
+            .flat_map(std::str::from_utf8)
+            .collect::<Vec<_>>();
+
+        let tryp = EnzymeParameters {
+            min_len: 5,
+            max_len: 5,
+            missed_cleavages: 0,
+            enyzme: None,
+        };
+
+        assert_eq!(
+            expected,
+            tryp.digest(sequence)
+                .into_iter()
+                .map(|d| d.sequence)
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn nonspecific_digest_5_7() {
+        let sequence = "MADEEKLPPGWEKRMSRSSGRVYYFNHITNASQWERPSGNW";
+
+        let expected = (5..=7)
+            .flat_map(|window| {
+                sequence
+                    .as_bytes()
+                    .windows(window)
+                    .flat_map(std::str::from_utf8)
+            })
+            .collect::<Vec<_>>();
+
+        let tryp = EnzymeParameters {
+            min_len: 5,
+            max_len: 7,
+            missed_cleavages: 0,
+            enyzme: Enzyme::new("", None, true),
+        };
+
+        assert_eq!(
+            expected,
+            tryp.digest(sequence)
+                .into_iter()
+                .map(|d| d.sequence)
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn no_digest() {
+        let sequence = "MADEEKLPPGWEKRMSRSSGRVYYFNHITNASQWERPSGNW";
+        let expected = vec![sequence];
+
+        let tryp = EnzymeParameters {
+            min_len: 0,
+            max_len: usize::MAX,
+            missed_cleavages: 0,
+            enyzme: Enzyme::new("$", None, true),
         };
 
         assert_eq!(
