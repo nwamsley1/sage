@@ -130,7 +130,10 @@ impl MzMLReader {
                     .value
             };
         }
-
+        println!("Hello, world!");
+        println!("Hello, world!");
+        println!("Hello, world!");
+        println!("Hello, world!");
         loop {
             match reader.read_event_into_async(&mut buf).await {
                 Ok(Event::Start(ref ev)) => {
