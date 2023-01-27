@@ -1,8 +1,10 @@
 use async_compression::tokio::bufread::GzipDecoder;
 use async_compression::tokio::write::GzipEncoder;
 use http::Uri;
+use sage_core::mzml2::{RawFileError, RawFileReader, Spectrum};
 use sage_core::mzml::{MzMLError, MzMLReader, Spectrum};
-use std::path::PathBuf;
+use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 use std::str::FromStr;
 use tokio::io::{AsyncBufRead, AsyncRead, AsyncWriteExt, BufReader};
 
@@ -251,6 +253,8 @@ pub fn read_mzml<S: AsRef<str>>(s: S) -> Result<Vec<Spectrum>, Error> {
             .parse(reader)
             .await
             .map_err(Error::MzMLError)
+        //RawFileReader::default().parse().mapp_err(Error::RawFileReader)
+
     })
 }
 
