@@ -114,9 +114,10 @@ impl RawFileReader {
             //Load python module that uses fisher_py to load the 
             //Thermo.CommonCore Dll's into python
             println!("yikes!");
-            let _raw_handle: &PyAny = get_raw_handle("HELA_uPAC_200cm_20221211_04.raw", py);
+            //let _raw_handle: &PyAny = get_raw_handle("HELA_uPAC_200cm_20221211_04.raw", py);
             
-            //let _raw_handle: &PyAny = get_raw_handle("MA4365_FFPE_HPVpos_08_071522.raw", py);
+            //et _raw_handle: &PyAny = get_raw_handle("MA4365_FFPE_HPVpos_08_071522.raw", py);
+            let _raw_handle: &PyAny = get_raw_handle("MA4427_16_WT_082722.raw", py);
             println!("mistake was not on line 88");
             //Get first and last scan numbers
             let first_scan_number: u32 = _raw_handle.getattr("run_header_ex")
@@ -163,10 +164,10 @@ impl RawFileReader {
         let scan_filter: String = _raw_handle.getattr("get_scan_event_string_for_scan_number").unwrap().call1((scan_identifier,)).unwrap().downcast::<PyUnicode>().unwrap().extract().unwrap();
     
         //Apply any filters here
-        //if scan_filter.contains("ITMS"){
+        if scan_filter.contains("ITMS"){
             //println!("skipping");
-        //    return spectrum
-        //} 
+           return spectrum
+        } 
 
         //Data need to parse the spectrum comes from "scan_event", "scan_stats" and "centroid_stream"
         //Can apply functions that filter based on "scan event"
@@ -197,7 +198,7 @@ impl RawFileReader {
             spectrum.id = scan_stats.getattr("scan_number").unwrap().downcast::<PyLong>().unwrap().extract::<u32>().unwrap().to_string();
             //.extract().unwrap();
             //spectrum.ion_injection_time = scan_stats.get("Ion Injection Time (ms):").as_ref().unwrap().parse::<f32>().unwrap();
-            println!("{:?}", spectrum.ion_injection_time);
+            //println!("{:?}", spectrum.ion_injection_time);
             //println!("{:?}", spectrum.ms_level);
 
             //Make precursor
@@ -205,7 +206,7 @@ impl RawFileReader {
 
                 precursor.mz  = scan_event.getattr("get_mass").unwrap().call1((0, )).unwrap().downcast::<PyFloat>().unwrap().extract().unwrap();
                 let isolation_width: f32 = scan_event.getattr("get_isolation_width").unwrap().call1((0, )).unwrap().downcast::<PyFloat>().unwrap().extract().unwrap();
-                println!("{:?}",precursor.mz - isolation_width/2.0);
+                //println!("{:?}",precursor.mz - isolation_width/2.0);
                 //if precursor.mz != 0.0 {
                 //    precursor.isolation_window = match (precursor.mz - isolation_width/2.0, precursor.mz + isolation_width/2.0) {
                 //        (Some(lo), Some(hi)) => Some(Tolerance::Da(-lo, hi)),
