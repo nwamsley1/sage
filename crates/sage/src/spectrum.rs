@@ -207,13 +207,13 @@ impl SpectrumProcessor {
     }
 
     fn process_ms2(&self, should_deisotope: bool, spectrum: &Spectrum) -> Vec<Peak> {
-        if spectrum.representation != Representation::Centroid {
+        //if spectrum.representation != Representation::Centroid {
             // Panic, because there's really nothing we can do with profile data
-            panic!(
-                "Scan {} contains profile data! Please convert to centroid",
-                spectrum.id
-            );
-        }
+            //panic!(
+            //    "Scan {} contains profile data! Please convert to centroid",
+            //    spectrum.id
+            //);
+        //}
 
         // If there is no precursor charge from the mzML file, then deisotope fragments up to z=3
         let charge = spectrum

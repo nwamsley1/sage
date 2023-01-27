@@ -1,10 +1,10 @@
 use async_compression::tokio::bufread::GzipDecoder;
 use async_compression::tokio::write::GzipEncoder;
 use http::Uri;
-use sage_core::mzml2::{RawFileError, RawFileReader, Spectrum};
+use sage_core::mzml2::{RawFileReader, RawFileError};
 use sage_core::mzml::{MzMLError, MzMLReader, Spectrum};
-use std::sync::Arc;
-use std::{path::PathBuf, sync::Arc};
+//use std::sync::Arc;
+use std::{path::PathBuf};
 use std::str::FromStr;
 use tokio::io::{AsyncBufRead, AsyncRead, AsyncWriteExt, BufReader};
 
@@ -239,29 +239,32 @@ async fn multipart_upload(
     Ok(())
 }
 
-pub fn read_mzml<S: AsRef<str>>(s: S) -> Result<Vec<Spectrum>, Error> {
-    let path = s.as_ref().parse::<CloudPath>()?;
+pub fn read_mzml<S: AsRef<str>>(s: S) -> Result<Vec<Spectrum>, RawFileError> {
+    //let path = s.as_ref().parse::<CloudPath>()?;
+    //let test: Vec<Spectrum> =  v;
+   // println!("blab");
+    //let rt = tokio::runtime::Builder::new_current_thread()
+    //    .enable_all()
+    //    .build()
+    //    .map_err(Error::IOError)?;
 
-    let rt = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .map_err(Error::IOError)?;
-
-    rt.block_on(async {
-        let reader = path.read().await?;
-        MzMLReader::default()
-            .parse(reader)
-            .await
-            .map_err(Error::MzMLError)
-        //RawFileReader::default().parse().mapp_err(Error::RawFileReader)
-
-    })
+    //rt.block_on(async {
+    //    let reader = path.read().await?;
+    //    MzMLReader::default()
+    //        .parse(reader)
+    //        .await
+    //        .map_err(Error::MzMLError)
+    //        })
+    println!("ln 258 lib.rs sage cloudpath");
+    return RawFileReader::parse()
+    //println!("ln 260 lib.rs sage cloudpath");
 }
 
 #[derive(Debug)]
 pub enum Error {
     InvalidUri,
     MzMLError(MzMLError),
+    RawFileError(RawFileError),
     S3Error(aws_sdk_s3::Error),
     IOError(tokio::io::Error),
 }
@@ -271,6 +274,7 @@ impl std::fmt::Display for Error {
         match self {
             Error::InvalidUri => f.write_str("invalid URI"),
             Error::MzMLError(x) => x.fmt(f),
+            Error::RawFileError(x) => x.fmt(f),
             Error::S3Error(x) => x.fmt(f),
             Error::IOError(x) => x.fmt(f),
         }

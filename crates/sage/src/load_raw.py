@@ -6,7 +6,8 @@ from fisher_py.raw_file_reader import RawFileReaderAdapter
 
 def load_raw(filename):
     rawFile = RawFileReaderAdapter.file_factory(
-                                                os.getcwd()+"/src/../../raw_files/"+filename
+                                                #os.getcwd()+"/src/../../raw_files/"+filename
+                                                "/Users/n.t.wamsley/Projects/SAGE_TESTING/raw_files/" + filename
                                                 )
     rawFile.select_instrument(Device.MS, 1)
     return rawFile

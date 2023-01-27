@@ -394,14 +394,15 @@ impl Runner {
             self.parameters.deisotope,
             file_id,
         );
-
+        println!("I think the error is after this! ln 397 main.rs");
         let spectra = sage_cloudpath::read_mzml(&path)?
             .into_par_iter()
             .map(|spec| sp.process(spec))
             .collect::<Vec<_>>();
 
-        log::trace!("{}: read {} spectra", path.as_ref(), spectra.len());
-
+        //log::trace!("{}: read {} spectra", path.as_ref(), spectra.len());
+        println!("Made it this far!");
+        println!("{:?}", spectra.len().to_string());
         Ok(self.search_processed_spectra(scorer, spectra))
     }
 
