@@ -68,9 +68,9 @@ pub struct Builder {
     /// 2 will remove b1/b2/y1/y2 ions, etc
     pub min_ion_index: Option<usize>,
     /// Static modifications to add to matching amino acids
-    pub static_mods: Option<HashMap<char, f32>>,
+    pub static_mods: Option<HashMap<String, f32>>,
     /// Variable modifications to add to matching amino acids
-    pub variable_mods: Option<HashMap<char, f32>>,
+    pub variable_mods: Option<HashMap<String, f32>>,
     /// Limit number of variable modifications on a peptide
     pub max_variable_mods: Option<usize>,
     /// Use this prefix for decoy proteins
@@ -82,11 +82,11 @@ pub struct Builder {
 }
 
 impl Builder {
-    fn validate_mods(input: Option<HashMap<char, f32>>) -> HashMap<char, f32> {
+    fn validate_mods(input: Option<HashMap<String, f32>>) -> HashMap<String, f32> {
         let mut output = HashMap::new();
         if let Some(input) = input {
             for (ch, mass) in input {
-                if crate::mass::VALID_AA.contains(&ch) || "^$[]".contains(ch) {
+                if crate::mass::VALID_AA.contains(&ch.chars().nth(0).unwrap()) || "^$[]".contains(ch.chars().nth_back(0).unwrap()) {
                     output.insert(ch, mass);
                 } else {
                     error!(
@@ -132,7 +132,7 @@ pub struct Parameters {
     peptide_min_mass: f32,
     peptide_max_mass: f32,
     min_ion_index: usize,
-    static_mods: HashMap<char, f32>,
+    static_mods: HashMap<String, f32>,
     variable_mods: HashMap<char, f32>,
     max_variable_mods: usize,
     decoy_tag: String,
@@ -273,7 +273,7 @@ impl Parameters {
             .static_mods
             .iter()
             .map(|(&x, &y)| (x, y))
-            .collect::<Vec<(char, f32)>>();
+            .collect::<Vec<(String, f32)>>();
         for (resi, mass) in &self.variable_mods {
             match self.static_mods.get(resi) {
                 Some(mass_) if mass_ == mass => {}

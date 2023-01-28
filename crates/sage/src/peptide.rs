@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap};
 
 use itertools::Itertools;
 
@@ -58,26 +58,76 @@ impl Peptide {
     }
 
     /// Apply a static modification to a peptide in-place
-    pub fn static_mod(&mut self, residue: char, mass: f32) {
-        match residue {
-            '^' => self.set_nterm_mod(mass),
-            '$' => self.set_cterm_mod(mass),
-            '[' => self.set_nterm_protein_mod(mass),
-            ']' => self.set_cterm_protein_mod(mass),
-            _ => {
-                for resi in self.sequence.iter_mut() {
-                    // Don't overwrite an already modified amino acid!
-                    match resi {
-                        Residue::Just(c) if *c == residue => {
-                            self.monoisotopic += mass;
-                            *resi = Residue::Mod(residue, mass);
-                        }
-                        _ => {}
+    pub fn static_mod(&mut self, position_modifier: char, residue: char, mass: f32) {
+        //.chars.first()
+        if position_modifier == '>' {
+
+            self.set_nterm_mod(mass);
+
+        } else if position_modifier == '&' {
+
+            self.set_cterm_mod(mass);
+
+        } else if position_modifier == '[' {
+
+            match *self.sequence.first().unwrap() == Residue::Just(residue) {
+                true => self.set_nterm_protein_mod(mass),
+                _ => {}
+            }
+
+        } else if position_modifier == ']' {
+
+            match *self.sequence.last().unwrap() == Residue::Just(residue) {
+                true => self.set_nterm_protein_mod(mass),
+                _ => {}
+            }
+
+        } else {
+            for resi in self.sequence.iter_mut() {
+                // Don't overwrite an already modified amino acid!
+                match resi {
+                    Residue::Just(c) if *c == residue => {
+                        self.monoisotopic += mass;
+                        *resi = Residue::Mod(residue, mass);
                     }
+                    _ => {}
                 }
             }
         }
     }
+       // for resi in selfsequence.iter_mut() {
+
+        //}
+        //fn match_car(&mut self, modification: str){
+
+        //}
+        //println!("{:?}", residue);
+        //println!("{:?}",self.sequence.last().unwrap().to_string());
+        //match *self.sequence.last().unwrap() == Residue::Just('K') {
+        //    true => println!("it worked!"), 
+        //    _ => println!("nothing")
+       // }
+        //println!("{:?}",matchself.sequence.last().unwrap() {
+        //    Residue::Just('K')==>);
+        //match residue {
+        //    '^' => self.set_nterm_mod(mass),
+        //    '$' => self.set_cterm_mod(mass),
+         //   '[' => self.set_nterm_protein_mod(mass),
+         //   ']' => self.set_cterm_protein_mod(mass),
+         //   _ => {
+         //       for resi in self.sequence.iter_mut() {
+         //           // Don't overwrite an already modified amino acid!
+         //           match resi {
+         //               Residue::Just(c) if *c == residue => {
+         //                   self.monoisotopic += mass;
+         //                   *resi = Residue::Mod(residue, mass);
+         //               }
+         //               _ => {}
+         //           }
+           //     }
+           // }
+       // }
+   // }
 
     /// Apply all variable mods in `sites` to self
     fn apply_variable_mods(&mut self, sites: &[&(Site, f32)]) {
@@ -109,13 +159,13 @@ impl Peptide {
     /// Apply variable modifications, then static modifications to a peptide
     pub fn apply(
         mut self,
-        variable_mods: &[(char, f32)],
-        static_mods: &HashMap<char, f32>,
+        variable_mods: &HashMap<String, f32>,//&[(char, f32)],
+        static_mods: &HashMap<String, f32>,
         combinations: usize,
     ) -> Vec<Peptide> {
         if variable_mods.is_empty() {
             for (resi, mass) in static_mods {
-                self.static_mod(*resi, *mass);
+                self.static_mod(resi.chars().nth(0).unwrap(), resi.chars().nth_back(0).unwrap(), *mass);
             }
             vec![self]
         } else {
@@ -141,7 +191,7 @@ impl Peptide {
             // Apply static mods to all peptides
             for peptide in modified.iter_mut() {
                 for (&residue, &mass) in static_mods {
-                    peptide.static_mod(residue, mass);
+                    peptide.static_mod(residue.chars().nth(0).unwrap(), residue.chars().nth_back(0).unwrap(), mass);
                 }
             }
 
