@@ -59,27 +59,57 @@ impl Peptide {
 
     /// Apply a static modification to a peptide in-place
     pub fn static_mod(&mut self, position_modifier: char, residue: char, mass: f32) {
-        //.chars.first()
-        if position_modifier == '>' {
+        //
 
-            self.set_nterm_mod(mass);
+        if position_modifier == '>' {
+            //If the residue specifier is generic "*" add the modification to the site
+            if residue == '*'{
+                self.set_nterm_mod(mass);
+            //If the residue specifier is specific to an AA, only add the modification
+            //To the position if the specified AA is present at the position
+            } else {
+                match *self.sequence.first().unwrap() == Residue::Just(residue) {
+                    true => self.set_nterm_protein_mod(mass),
+                    _ => {}
+                }
+            }
 
         } else if position_modifier == '&' {
-
-            self.set_cterm_mod(mass);
+            //If the residue specifier is generic "*" add the modification to the site
+            if residue == '*'{
+                self.set_cterm_mod(mass);
+            //If the residue specifier is specific to an AA, only add the modification
+            //To the position if the specified AA is present at the position
+            } else {
+                match *self.sequence.first().unwrap() == Residue::Just(residue) {
+                    true => self.set_nterm_protein_mod(mass),
+                    _ => {}
+                }
+            }
 
         } else if position_modifier == '[' {
 
-            match *self.sequence.first().unwrap() == Residue::Just(residue) {
-                true => self.set_nterm_protein_mod(mass),
-                _ => {}
+            if residue == '*'{
+                self.set_nterm_protein_mod(mass);
+            //If the residue specifier is specific to an AA, only add the modification
+            //To the position if the specified AA is present at the position
+            } else {
+                match *self.sequence.first().unwrap() == Residue::Just(residue) {
+                    true => self.set_nterm_protein_mod(mass),
+                    _ => {}
+                }
             }
 
         } else if position_modifier == ']' {
-
-            match *self.sequence.last().unwrap() == Residue::Just(residue) {
-                true => self.set_nterm_protein_mod(mass),
-                _ => {}
+            if residue == '*'{
+                self.set_cterm_protein_mod(mass);
+            //If the residue specifier is specific to an AA, only add the modification
+            //To the position if the specified AA is present at the position
+            } else {
+                match *self.sequence.first().unwrap() == Residue::Just(residue) {
+                    true => self.set_cterm_protein_mod(mass),
+                    _ => {}
+                }
             }
 
         } else {
@@ -159,7 +189,7 @@ impl Peptide {
     /// Apply variable modifications, then static modifications to a peptide
     pub fn apply(
         mut self,
-        variable_mods: &HashMap<String, f32>,//&[(char, f32)],
+        variable_mods: &HashMap<String, f32>,//&[(String, f32)],
         static_mods: &HashMap<String, f32>,
         combinations: usize,
     ) -> Vec<Peptide> {
@@ -173,7 +203,7 @@ impl Peptide {
             let mods = variable_mods
                 .iter()
                 .fold(vec![], |mut acc, (residue, mass)| {
-                    acc.extend(self.modification_sites(*residue, *mass));
+                    acc.extend(self.modification_sites(residue.chars().nth_back(0).unwrap(), *mass));
                     acc
                 });
 
@@ -190,7 +220,7 @@ impl Peptide {
 
             // Apply static mods to all peptides
             for peptide in modified.iter_mut() {
-                for (&residue, &mass) in static_mods {
+                for (residue, &mass) in static_mods {
                     peptide.static_mod(residue.chars().nth(0).unwrap(), residue.chars().nth_back(0).unwrap(), mass);
                 }
             }
@@ -353,7 +383,7 @@ mod test {
 
     use super::*;
 
-    fn var_mod_sequence(peptide: &Peptide, mods: &[(char, f32)], combo: usize) -> Vec<String> {
+    fn var_mod_sequence(peptide: &Peptide, mods: &HashMap<String, f32>, combo: usize) -> Vec<String> {
         let static_mods = HashMap::default();
         peptide
             .clone()
@@ -388,7 +418,11 @@ mod test {
         assert_eq!(peptides[2].to_string(), "END");
         assert_eq!(peptides[2].position, Position::Cterm);
 
-        let mods = [('[', 42.0), (']', 11.0), ('^', 12.0), ('$', 19.0)];
+        let mods = [("[*".to_string(), 42.0), 
+                                         ("]*".to_string(), 11.0), 
+                                         ("^*".to_string(), 12.0), 
+                                         ("$*".to_string(), 19.0)].into_iter().collect();
+
         let a = var_mod_sequence(&peptides[0], &mods, 2);
         let b = var_mod_sequence(&peptides[1], &mods, 2);
         let c = var_mod_sequence(&peptides[2], &mods, 2);
@@ -431,7 +465,7 @@ mod test {
 
     #[test]
     fn test_variable_mods() {
-        let variable_mods = [('M', 16.0f32), ('C', 57.)];
+        let variable_mods = [("*M".to_string(), 16.0f32), ("*C".to_string(), 57.)].into_iter().collect();
         let peptide = Peptide::try_from(&Digest {
             sequence: "GCMGCMG".into(),
             ..Default::default()
@@ -458,7 +492,7 @@ mod test {
 
     #[test]
     fn test_variable_mods_no_effeect() {
-        let variable_mods = [('M', 16.0f32), ('C', 57.)];
+        let variable_mods = [("*M".to_string(), 16.0f32), ("*C".to_string(), 57.)].into_iter().collect();
         let peptide = Peptide::try_from(&Digest {
             sequence: "AAAAAAAA".into(),
             ..Default::default()
@@ -472,7 +506,7 @@ mod test {
 
     #[test]
     fn test_variable_mods_nterm() {
-        let variable_mods = [('^', 42.), ('M', 16.)];
+        let variable_mods = [("^*".to_string(), 42.), ("*M".to_string(), 16.)].into_iter().collect();
         let peptide = Peptide::try_from(&Digest {
             sequence: "GCMGCMG".into(),
             ..Default::default()
@@ -496,7 +530,7 @@ mod test {
 
     #[test]
     fn test_variable_mods_cterm() {
-        let variable_mods = [('$', 42.), ('M', 16.)];
+        let variable_mods = [("$*".to_string(), 42.), ("*M".to_string(), 16.)].into_iter().collect();
         let peptide = Peptide::try_from(&Digest {
             sequence: "GCMGCMG".into(),
             ..Default::default()
@@ -544,8 +578,8 @@ mod test {
             assert_eq!(fwd.pseudo_forward(), None);
             assert_eq!(rev.pseudo_forward().unwrap().to_string(), fwd.to_string());
 
-            fwd.static_mod('E', 15.0);
-            rev.static_mod('E', 15.0);
+            fwd.static_mod('*', 'E', 15.0);
+            rev.static_mod('*','E', 15.0);
             assert_eq!(rev.pseudo_forward().unwrap().to_string(), fwd.to_string());
         }
     }
@@ -566,9 +600,9 @@ mod test {
         ];
 
         let mut static_mods = HashMap::new();
-        static_mods.insert('C', 57.0);
+        static_mods.insert("*C".to_string(), 57.0);
 
-        let variable_mods = [('C', 30.0)];
+        let variable_mods = [("*C".to_string(), 30.0)].into_iter().collect();
 
         let peptides = peptide
             .apply(&variable_mods, &static_mods, 2)
@@ -600,9 +634,9 @@ mod test {
         let mods = peptide.modification_sites('^', 16.0);
         assert_eq!(mods.collect::<Vec<_>>(), vec![(PeptideN, 16.0)]);
 
-        let mods = [('^', 12.0), ('$', 200.0), ('C', 57.0), ('A', 43.0)];
+        let mods: HashMap<String, f32> = [("^*".to_string(), 12.), ("$*".to_string(), 200.0), ("*C".to_string(), 57.0), ("*A".to_string(), 43.0)].into_iter().collect();
         let mods = mods.iter().fold(vec![], |mut acc, m| {
-            acc.extend(peptide.modification_sites(m.0, m.1));
+            acc.extend(peptide.modification_sites(m.0.chars().nth(0).unwrap(), m.1.clone()));
             acc
         });
 

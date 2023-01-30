@@ -89,10 +89,12 @@ impl Builder {
                 if crate::mass::VALID_AA.contains(&ch.chars().nth(0).unwrap()) || "^$[]".contains(ch.chars().nth_back(0).unwrap()) {
                     output.insert(ch, mass);
                 } else {
-                    error!(
-                        "invalid residue: {}, proceeding without this static mod",
-                        ch
-                    );
+                   // error!(
+                   //     "invalid residue: {}, proceeding without this static mod",
+                   //     ch
+                   // );
+                   output.insert(ch, mass);
+                   println!("hello");
                 }
             }
         }
@@ -133,7 +135,7 @@ pub struct Parameters {
     peptide_max_mass: f32,
     min_ion_index: usize,
     static_mods: HashMap<String, f32>,
-    variable_mods: HashMap<char, f32>,
+    variable_mods: HashMap<String, f32>,
     max_variable_mods: usize,
     decoy_tag: String,
     generate_decoys: bool,
@@ -150,11 +152,10 @@ impl Parameters {
         // and missed cleavages, if applicable.
         let digests = fasta.digest(enzyme);
 
-        let mods = self
-            .variable_mods
-            .iter()
-            .map(|(a, b)| (*a, *b))
-            .collect::<Vec<_>>();
+        let mods = self.variable_mods.clone();
+            //.iter()
+            //.map(|(a, b)| (a, *b))
+            //.collect::<Vec<_>>();
 
         // From our set of unique peptide sequence, apply any modifications
         // and convert to [`TargetDecoy`] enum
@@ -272,13 +273,13 @@ impl Parameters {
         let mut potential_mods = self
             .static_mods
             .iter()
-            .map(|(&x, &y)| (x, y))
+            .map(|(x, &y)| (x.clone(), y))
             .collect::<Vec<(String, f32)>>();
         for (resi, mass) in &self.variable_mods {
             match self.static_mods.get(resi) {
                 Some(mass_) if mass_ == mass => {}
                 _ => {
-                    potential_mods.push((*resi, *mass));
+                    potential_mods.push((resi.clone(), *mass));
                 }
             }
         }
@@ -316,7 +317,7 @@ pub struct IndexedDatabase {
     pub fragments: Vec<Theoretical>,
     pub(crate) min_value: Vec<f32>,
     /// Keep a list of potential (AA, mass) modifications for RT prediction
-    pub potential_mods: Vec<(char, f32)>,
+    pub potential_mods: Vec<(String, f32)>,//Vec<(char, f32)>
     pub bucket_size: usize,
     peptide_graph: HashMap<String, Vec<String>>,
 }
