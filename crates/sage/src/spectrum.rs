@@ -2,7 +2,7 @@ use serde::Serialize;
 
 use crate::database::binary_search_slice;
 use crate::mass::{Tolerance, NEUTRON, PROTON};
-use crate::mzml::{Representation, Spectrum};
+use crate::mzml::{Spectrum};
 
 /// A charge-less peak at monoisotopic mass
 #[derive(PartialEq, PartialOrd, Copy, Clone, Default, Debug, Serialize)]

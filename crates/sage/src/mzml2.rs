@@ -2,10 +2,8 @@
 //CXX=/usr/local/bin/g++-12 cargo run --release modmzml.json
 //pyenv activate venv_rust_pyo3  
 use crate::mzml::Spectrum;
-use crate::mzml::Representation;
 use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyList, PyLong, PyFloat, PyUnicode};
-use std::iter::Iterator;
 
 use crate::mass::Tolerance;
 use crate::spectrum::Precursor;
@@ -105,8 +103,8 @@ impl RawFileReader {
     //        Self::Malformed
     //    }
    // }
-
-    pub fn parse() -> Result<Vec<Spectrum>, RawFileError>{
+    pub fn parse(filename: &String) -> Result<Vec<Spectrum>, RawFileError>{
+        println!("This is the filename {:?}", filename);
         pyo3::prepare_freethreaded_python();
         //env::set_var("RUST_BACKTRACE", "full");
         let spectra: Vec<Spectrum> = Python::with_gil(|py| {
@@ -117,7 +115,9 @@ impl RawFileReader {
             //let _raw_handle: &PyAny = get_raw_handle("HELA_uPAC_200cm_20221211_04.raw", py);
             
             //et _raw_handle: &PyAny = get_raw_handle("MA4365_FFPE_HPVpos_08_071522.raw", py);
-            let _raw_handle: &PyAny = get_raw_handle("MA4427_16_WT_082722.raw", py);
+            //let _raw_handle: &PyAny = get_raw_handle(&filename, py);
+            let filename = "/Users/n.t.wamsley/Projects/SAGE_TESTING/MA4358_FFPE_HPVpos_01_071522.raw".to_string();
+            let _raw_handle: &PyAny = get_raw_handle(&filename, py);
             println!("mistake was not on line 88");
             //Get first and last scan numbers
             let first_scan_number: u32 = _raw_handle.getattr("run_header_ex")
@@ -135,7 +135,6 @@ impl RawFileReader {
             loop {
                 let spectrum: Spectrum = get_centroid_stream(count, _raw_handle);
                 //println!("{:?}",spectrum.0.ion_injection_time);
-                //println!("Hellow");
                 spectra.push(spectrum);
                 //if spectrum.1 > 0{}
                 if count == last_scan_number {
@@ -174,9 +173,11 @@ impl RawFileReader {
         let scan_event: &PyAny = _raw_handle.getattr("get_scan_event_for_scan_number").unwrap().call1((scan_identifier,)).unwrap();
         let scan_stats: &PyAny = _raw_handle.getattr("get_scan_stats_for_scan_number")
         .unwrap().call1((scan_identifier,)).unwrap(); 
+        let start = Instant::now();
         let centroid_stream: &PyAny = _raw_handle.getattr("get_centroid_stream").unwrap().call1((scan_identifier, false)).unwrap();
+        let io_time = Instant::now() - start;
 
-        //println!("{:?}", scan_filter);
+        println!("{:?}", io_time);
         spectrum.ms_level = scan_event.getattr("ms_order").unwrap()
         .getattr("value").unwrap().downcast::<PyLong>().unwrap().extract().unwrap();
 
@@ -239,7 +240,7 @@ impl RawFileReader {
 
     //Open a handle to the raw file. Needs to be in the same directory as main.rs
     //fn get_raw_handle<'a>(filename: &'a str, py: Python<'a>) -> Result<&'a PyAny, PyErr> {
-    fn get_raw_handle<'a>(filename: &'a str, py: Python<'a>) -> &'a PyAny {
+    fn get_raw_handle<'a>(filename: &'a String, py: Python<'a>) -> &'a PyAny {
 
         //hardcode location of load_raw. This module uses fisher_py
         //to load the Thermo.CommonCore DLLs and open a handle to the raw file

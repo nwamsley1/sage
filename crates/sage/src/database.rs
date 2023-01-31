@@ -3,7 +3,6 @@ use crate::fasta::Fasta;
 use crate::ion_series::{IonSeries, Kind};
 use crate::mass::{Tolerance, NEUTRON};
 use crate::peptide::Peptide;
-use log::error;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
@@ -94,7 +93,6 @@ impl Builder {
                    //     ch
                    // );
                    output.insert(ch, mass);
-                   println!("hello");
                 }
             }
         }

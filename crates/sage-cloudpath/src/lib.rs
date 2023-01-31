@@ -180,7 +180,7 @@ async fn multipart_upload(
         .await
         .create_multipart_upload()
         .bucket(bucket)
-        .key(key)
+        .key(key) 
         .send()
         .await?;
 
@@ -239,7 +239,8 @@ async fn multipart_upload(
     Ok(())
 }
 
-pub fn read_mzml<S: AsRef<str>>(s: S) -> Result<Vec<Spectrum>, RawFileError> {
+pub fn read_raw(path: &String) -> Result<Vec<Spectrum>, RawFileError> {
+    //println!("{:?}", path);
     //let path = s.as_ref().parse::<CloudPath>()?;
     //let test: Vec<Spectrum> =  v;
    // println!("blab");
@@ -256,8 +257,25 @@ pub fn read_mzml<S: AsRef<str>>(s: S) -> Result<Vec<Spectrum>, RawFileError> {
     //        .map_err(Error::MzMLError)
     //        })
     println!("ln 258 lib.rs sage cloudpath");
-    return RawFileReader::parse()
+    return RawFileReader::parse(path)
     //println!("ln 260 lib.rs sage cloudpath");
+}
+
+pub fn read_mzml<S: AsRef<str>>(s: S) -> Result<Vec<Spectrum>, Error> {
+    let path = s.as_ref().parse::<CloudPath>()?;
+
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .map_err(Error::IOError)?;
+
+    rt.block_on(async {
+        let reader = path.read().await?;
+        MzMLReader::default()
+            .parse(reader)
+            .await
+            .map_err(Error::MzMLError)
+    })
 }
 
 #[derive(Debug)]

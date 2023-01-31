@@ -7,6 +7,7 @@ use sage_core::mass::Tolerance;
 use sage_core::scoring::{Feature, Scorer};
 use sage_core::spectrum::{ProcessedSpectrum, SpectrumProcessor};
 use sage_core::tmt::{Isobaric, TmtQuant};
+//use sage_core::mzml::Spectrum;
 use serde::{Deserialize, Serialize};
 use std::time::{self, Instant};
 
@@ -387,6 +388,7 @@ impl Runner {
         path: P,
         file_id: usize,
     ) -> anyhow::Result<SageResults> {
+
         let sp = SpectrumProcessor::new(
             self.parameters.max_peaks,
             self.parameters.database.fragment_min_mz,
@@ -394,21 +396,32 @@ impl Runner {
             self.parameters.deisotope,
             file_id,
         );
-        println!("I think the error is after this! ln 397 main.rs");
-        let spectra = sage_cloudpath::read_mzml(&path)?
-            .into_par_iter()
-            .map(|spec| sp.process(spec))
-            .collect::<Vec<_>>();
 
-        //log::trace!("{}: read {} spectra", path.as_ref(), spectra.len());
-        println!("Made it this far!");
-        println!("{:?}", spectra.len().to_string());
-        Ok(self.search_processed_spectra(scorer, spectra))
+        //Decide if file is .mzML or .raw. Return an error if neither. 
+        if path.as_ref().to_string().split('.').last().unwrap() == ".mzML".to_string() {
+            info!("here is the path {:?}", path.as_ref().to_string());
+            let spectra = sage_cloudpath::read_mzml(&path)?
+                .into_par_iter()
+                .map(|spec| sp.process(spec))
+                .collect::<Vec<_>>();
+                Ok(self.search_processed_spectra(scorer, spectra))
+
+       } else if path.as_ref().to_string().split('.').last().unwrap() == ".raw".to_string() {
+            let spectra = sage_cloudpath::read_raw(&path.as_ref().to_string())?
+                .into_par_iter()
+                .map(|spec| sp.process(spec))
+                .collect::<Vec<_>>();
+                Ok(self.search_processed_spectra(scorer, spectra))
+
+       } else {
+            panic!("file path {:?} did not end in .raw or .mzML", path.as_ref().to_string());
+        }
     }
 
     fn process_chunk(
         &self,
         scorer: &Scorer,
+        //Array of file paths
         chunk: &[String],
         chunk_idx: usize,
         batch_size: usize,
@@ -420,31 +433,37 @@ impl Runner {
             batch_size * chunk_idx + chunk.len()
         );
         let start = Instant::now();
+
+        //Reads each file path in "chunk"
+        //Accepts files ending in '.raw' or '.mzML'.
         let spectra = chunk
             .par_iter()
-            .map(sage_cloudpath::read_mzml)
-            .collect::<Vec<_>>();
+            .map(|filepath| 
+                {
+                    //Is the file a raw file or an mzML
+                    if filepath.split('.').last().unwrap() == "raw"{
+                        sage_cloudpath::read_raw(filepath).expect("error reading reading raw")
+                    } else if filepath.split('.').last().unwrap() == "mzML"{
+                        sage_cloudpath::read_mzml(filepath).expect("error reading mzML")
+                    } else {
+                        sage_cloudpath::read_mzml(filepath).expect("")
+                       // panic!("file {:?} was neither mzML or raw", filepath);
+                    }
+                }
+                )
+            .collect::<Vec<_>>();//.unwrap("Error reading data files");
+
         let io_time = Instant::now() - start;
 
         let count: usize = spectra
             .iter()
-            .filter_map(|x| x.as_ref().map(|x| x.len()).ok())
+            .filter_map(|x| Some(x.len()))//.map(|x| x.len()).ok())
             .sum();
 
         let start = Instant::now();
         let results = spectra
             .into_par_iter()
             .enumerate()
-            .filter_map(|(idx, spectra)| match spectra {
-                Ok(spectra) => {
-                    log::trace!(" - {}: read {} spectra", chunk[idx], spectra.len());
-                    Some((idx, spectra))
-                }
-                Err(e) => {
-                    log::error!("error while processing {}: {}", chunk[idx], e);
-                    None
-                }
-            })
             .map(|(idx, spectra)| {
                 let sp = SpectrumProcessor::new(
                     self.parameters.max_peaks,
@@ -617,6 +636,7 @@ fn main() -> anyhow::Result<()> {
     }
     if let Some(mzml_paths) = matches.get_many::<String>("mzml_paths") {
         input.mzml_paths = Some(mzml_paths.into_iter().map(|p| p.into()).collect());
+        println!("mzml_paths are {:?}", input.mzml_paths);
     }
 
     if let Some(no_parallel) = matches.get_one::<bool>("no-parallel").copied() {

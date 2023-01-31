@@ -216,7 +216,7 @@ mod test {
     #[test]
     fn nterm_mod() {
         let mut peptide = peptide("PEPTIDE");
-        peptide.static_mod('^', 'P', 229.01);
+        peptide.static_mod('^', '*', 229.01);
 
         // Charge state 1, b-ions should be TMT tagged
         let expected_b = [
@@ -238,7 +238,7 @@ mod test {
     #[test]
     fn cterm_mod() {
         let mut peptide = peptide("PEPTIDE");
-        peptide.static_mod('$', 'E', 229.01);
+        peptide.static_mod('$', '*', 229.01);
         assert!((peptide.monoisotopic - 1028.3699).abs() < 0.001);
 
         // b-ions should not be tagged
