@@ -239,7 +239,7 @@ async fn multipart_upload(
     Ok(())
 }
 
-pub fn read_raw(path: &String) -> Result<Vec<Spectrum>, RawFileError> {
+pub fn read_raw(path: &String) -> Vec<Spectrum> {
     //println!("{:?}", path);
     //let path = s.as_ref().parse::<CloudPath>()?;
     //let test: Vec<Spectrum> =  v;

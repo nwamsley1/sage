@@ -2,48 +2,22 @@
 //CXX=/usr/local/bin/g++-12 cargo run --release modmzml.json
 //pyenv activate venv_rust_pyo3  
 use crate::mzml::Spectrum;
-use pyo3::prelude::*;
-use pyo3::types::{PyAny, PyList, PyLong, PyFloat, PyUnicode};
-
 use crate::mass::Tolerance;
 use crate::spectrum::Precursor;
 
+use std::fs::File;
+use std::collections::HashMap;
+use arrow2::array::{Array, PrimitiveArray, ListArray, Utf8Array, Float32Array};
+use arrow2::chunk::Chunk;
+use arrow2::datatypes::Schema;
+use arrow2::error::Result;
+use arrow2::io::ipc::{read::{FileReader, read_file_metadata}};
+use arrow2::error::Error;
 //use std::collections::HashMap;
 use std::{time::{//Duration, 
           Instant
         }};
 
-//#[derive(Default, Debug, Clone)]
-//pub struct Spectrum {
-//    pub ms_level: u8,
-//    pub id: String,
-//    // pub scan_id: Option<usize>,
-//    pub precursors: Vec<Precursor>,
-//    /// Profile or Centroided data
-//    pub representation: Representation,
-//    /// Scan start time
-//    pub scan_start_time: f32,
-//   /// Ion injection time
-//  pub ion_injection_time: f32,
-    /// Total ion current
-//    pub total_ion_current: f32,
-    /// M/z array
-//    pub mz: Vec<f32>,
-    /// Intensity array
-//    pub intensity: Vec<f32>,
-//}
-
-//#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-//pub enum Representation {
-//    Profile,
-//    Centroid,
-//}
-
-//impl Default for Representation {
-//    fn default() -> Self {
-//        Self::Profile
-//    }
-//}
 
 #[derive(Debug)]
 pub enum RawFileError {
@@ -101,112 +75,42 @@ impl RawFileReader {
     //impl From<std::str::Utf8Error> for RawFileError {
     //    fn from(_: std::str::Utf8Error) -> Self {
     //        Self::Malformed
-    //    }
+    //    } parse<B: AsyncBufRead + Unpin>(&self, b: B) -> Result<Vec<Spectrum>, MzMLError>
    // }
-    pub fn parse(filename: &String) -> Result<Vec<Spectrum>, RawFileError>{
+    pub fn parse(filename: &String) -> Vec<Spectrum>{
         println!("{:?}", filename);
-        pyo3::prepare_freethreaded_python();
-        //env::set_var("RUST_BACKTRACE", "full");
-        let spectra: Vec<Spectrum> = Python::with_gil(|py| {
-
-            //Load python module that uses fisher_py to load the 
-            //Thermo.CommonCore Dll's into python
-
-            //let _raw_handle: &PyAny = get_raw_handle("HELA_uPAC_200cm_20221211_04.raw", py);
-            
-            //et _raw_handle: &PyAny = get_raw_handle("MA4365_FFPE_HPVpos_08_071522.raw", py);
-            //let _raw_handle: &PyAny = get_raw_handle(&filename, py);
-            //let filename = "/Users/n.t.wamsley/Projects/SAGE_TESTING/MA4358_FFPE_HPVpos_01_071522.raw".to_string();
-            let _raw_handle: &PyAny = get_raw_handle(filename, py);
-            //Get first and last scan numbers
-            let first_scan_number: u32 = _raw_handle.getattr("run_header_ex")
-            .unwrap().getattr("first_spectrum").unwrap().downcast::<PyLong>().unwrap().extract().unwrap();
-            let last_scan_number: u32 = _raw_handle.getattr("run_header_ex")
-            .unwrap().getattr("last_spectrum").unwrap().downcast::<PyLong>().unwrap().extract().unwrap();
-            //let first_scan_number: u32 = 29990;
-            //let last_scan_number: u32 = 30000;
-
-            let now = Instant::now();
-            let mut count = first_scan_number;
-            let mut spectra = Vec::new();
-            //Load all spectra into a Vec<Spectrum>
-
-            loop {
-                let spectrum: Spectrum = get_centroid_stream(count, _raw_handle);
-                //println!("{:?}",spectrum.0.ion_injection_time);
-                spectra.push(spectrum);
-                //if spectrum.1 > 0{}
-                if count == last_scan_number {
-                    break;
-                }
-                count += 1;
-            }
-            let new_now = Instant::now();
-            println!("{:?}", new_now.saturating_duration_since(now));
-            println!("{:?}", now.saturating_duration_since(new_now));
-            //println!("{:?}", spectra[29000].0.get_heap_size());
-            //println!("{:?}", spectra.get_heap_size());
-            //check type of output
-            fn print_type_of<T>(_: &T) {
-                            println!("{}", std::any::type_name::<T>())
-            }
-            spectra
-        });
-
-    fn get_centroid_stream<'a>(scan_identifier: u32, _raw_handle : &'a PyAny) -> Spectrum {
-        //Default spectrum and precursor
-        let mut spectrum: Spectrum = Spectrum::default();
-        let mut precursor = Precursor::default();
-
-        //scan header string. Useful for filtering scans 
-        let scan_filter: String = _raw_handle.getattr("get_scan_event_string_for_scan_number").unwrap().call1((scan_identifier,)).unwrap().downcast::<PyUnicode>().unwrap().extract().unwrap();
-    
-        //Apply any filters here
-        if scan_filter.contains("ITMS"){
-            //println!("skipping");
-           return spectrum
-        } 
-
-        //Data need to parse the spectrum comes from "scan_event", "scan_stats" and "centroid_stream"
-        //Can apply functions that filter based on "scan event"
-        let scan_event: &PyAny = _raw_handle.getattr("get_scan_event_for_scan_number").unwrap().call1((scan_identifier,)).unwrap();
-        let scan_stats: &PyAny = _raw_handle.getattr("get_scan_stats_for_scan_number")
-        .unwrap().call1((scan_identifier,)).unwrap(); 
-        let start = Instant::now();
-        let centroid_stream: &PyAny = _raw_handle.getattr("get_centroid_stream").unwrap().call1((scan_identifier, false)).unwrap();
-
-        let io_time = Instant::now() - start;
-
-        //println!("{:?}", io_time);
-        spectrum.ms_level = scan_event.getattr("ms_order").unwrap()
-        .getattr("value").unwrap().downcast::<PyLong>().unwrap().extract().unwrap();
-
-
-        // Only get the spectrum if it is larger than zero. Otherwise return the default empty spectrum
-        let spectrum_size: u32 = centroid_stream.getattr("length")
-                                                .unwrap().downcast::<PyLong>().unwrap().extract().unwrap();  
-
-        if spectrum_size > 0 {
-
-            spectrum.mz = centroid_stream.getattr("masses")
-            .unwrap().downcast::<PyList>().unwrap().extract().unwrap();
-
-            spectrum.intensity = centroid_stream.getattr("intensities")
-            .unwrap().downcast::<PyList>().unwrap().extract().unwrap();
-
-            spectrum.scan_start_time = scan_stats.getattr("start_time").unwrap().downcast::<PyFloat>().unwrap().extract().unwrap();
-            spectrum.total_ion_current = scan_stats.getattr("tic").unwrap().downcast::<PyFloat>().unwrap().extract().unwrap();
-            spectrum.id = scan_stats.getattr("scan_number").unwrap().downcast::<PyLong>().unwrap().extract::<u32>().unwrap().to_string();
-            //.extract().unwrap();
-            //spectrum.ion_injection_time = scan_stats.get("Ion Injection Time (ms):").as_ref().unwrap().parse::<f32>().unwrap();
-            //println!("{:?}", spectrum.ion_injection_time);
-            //println!("{:?}", spectrum.ms_level);
-
-            //Make precursor
+        let mut spectra: Vec<Spectrum> = Vec::new();
+        let (schema, scans) = read_chunks(&filename).unwrap();
+        //scans = scans[0];
+        println!("{}",filename);
+        let TIC = scans[0][schema["TIC"]].as_any().downcast_ref::<PrimitiveArray<f32>>().unwrap();
+        let scanType = scans[0][schema["scanType"]].as_any().downcast_ref::<Utf8Array<i32>>().unwrap();
+        let msOrder = scans[0][schema["msOrder"]].as_any().downcast_ref::<PrimitiveArray<i32>>().unwrap();
+        let retentionTime = scans[0][schema["retentionTime"]].as_any().downcast_ref::<PrimitiveArray<f32>>().unwrap();
+        let scanNumber = scans[0][schema["scanNumber"]].as_any().downcast_ref::<PrimitiveArray<i32>>().unwrap();
+        let scanMasses = scans[0][schema["masses"]].as_any().downcast_ref::<ListArray<i32>>().unwrap().as_any().downcast_ref::<ListArray<i32>>().unwrap();
+        let scanIntensities = scans[0][schema["intensities"]].as_any().downcast_ref::<ListArray<i32>>().unwrap().as_any().downcast_ref::<ListArray<i32>>().unwrap();
+        let precursorMz = scans[0][schema["precursorMZ"]].as_any().downcast_ref::<PrimitiveArray<f32>>().unwrap();
+        let TIC = scans[0][schema["TIC"]].as_any().downcast_ref::<PrimitiveArray<f32>>().unwrap();
+        
+        for scan_id in 0..scans[0].len(){
+            let mut spectrum: Spectrum = Spectrum::default();
+            //Apply any filters here
+            if scanType.value(scan_id).contains("ITMS"){
+                            //println!("skipping");
+                continue;
+            } 
+            let mut precursor = Precursor::default();
+            spectrum.ms_level = msOrder.value(scan_id) as u8;
+            spectrum.mz = scanMasses.value(scan_id).as_any().downcast_ref::<Float32Array>().unwrap().clone().values().to_vec();
+            spectrum.intensity = scanIntensities.value(scan_id).as_any().downcast_ref::<Float32Array>().unwrap().clone().values().to_vec();
+            spectrum.scan_start_time = retentionTime.value(scan_id);
+            spectrum.total_ion_current = TIC.value(scan_id);
+            spectrum.id = scanNumber.value(scan_id).to_string();
             if spectrum.ms_level>1 {
 
-                precursor.mz  = scan_event.getattr("get_mass").unwrap().call1((0, )).unwrap().downcast::<PyFloat>().unwrap().extract().unwrap();
-                let isolation_width: f32 = scan_event.getattr("get_isolation_width").unwrap().call1((0, )).unwrap().downcast::<PyFloat>().unwrap().extract().unwrap();
+                precursor.mz  = precursorMz.value(scan_id);
+                let isolation_width: f32 = 1.0; //Need to edit my arrow files to include this. 
                 //println!("{:?}",precursor.mz - isolation_width/2.0);
                 //if precursor.mz != 0.0 {
                 //    precursor.isolation_window = match (precursor.mz - isolation_width/2.0, precursor.mz + isolation_width/2.0) {
@@ -217,47 +121,43 @@ impl RawFileReader {
                 //    precursor = Precursor::default();
                 // }
                 precursor.isolation_window = Some(Tolerance::Da(-(precursor.mz - isolation_width/2.0), 
-                                                              precursor.mz + isolation_width/2.0)
+                                                            precursor.mz + isolation_width/2.0)
                                                 );
 
                 spectrum.precursors.push(precursor);
-                precursor = Precursor::default();
+            } else{
+                spectrum.precursors.push(precursor);
+            }
+            spectra.push(spectrum);
+        }
+        //Open a handle to the arrow file. Needs to be in the same directory as main.rs
+        fn read_chunks(filename: &str) -> Result<(HashMap<String, usize>, Vec<Chunk<Box<dyn Array>>>)> {
+            println!("Hello, world!");
+            let mut reader = File::open(&filename).unwrap();
+            let metadata = read_file_metadata(&mut reader).unwrap();
+        
+            let schema = metadata.schema.clone();
+            
+            let reader = FileReader::new(reader, metadata, None, None);
+        
+            let chunks = reader.collect::<Result<Vec<_>>>().unwrap();
+            let names = schema.fields.iter().map(|f| &f.name).collect::<Vec<_>>();
+            let mut key_value = HashMap::new();
+            for name in names.iter().enumerate() {
+               // println!("{}", (name.0, name.1));
+               key_value.insert(name.1.to_string(), name.0);
             }
 
-        //precursor iosolation width
-        //scan_event.getattr("get_isolation_width").unwrap().call1((0, )).unwrap().downcast::<PyFloat>().unwrap().extract().unwrap()
-        
-            spectrum.scan_start_time = _raw_handle.getattr("retention_time_from_scan_number").unwrap().call1((scan_identifier,)).unwrap()
-            .downcast::<PyFloat>().unwrap().extract().unwrap();//::<PyLong>().unwrap();//::<PyLong>().unwrap().extract().unwrap();
-
-            //spectrum.scan_start_time = scan_event.getattr( "")
-            return spectrum
-            } else {
-            //println!("spectrum size was zero");
-            return spectrum
-        }
-    }
-
-    //Open a handle to the raw file. Needs to be in the same directory as main.rs
-    //fn get_raw_handle<'a>(filename: &'a str, py: Python<'a>) -> Result<&'a PyAny, PyErr> {
-    fn get_raw_handle<'a>(filename: &'a String, py: Python<'a>) -> &'a PyAny {
-
-        //hardcode location of load_raw. This module uses fisher_py
-        //to load the Thermo.CommonCore DLLs and open a handle to the raw file
-        fn get_load_raw_module(py: Python) -> &PyModule {
-
-            let code = std::fs::read_to_string("/Users/n.t.wamsley/Projects/SAGE_TESTING/sage/crates/sage/src/load_raw.py").unwrap();
-            PyModule::from_code(py, &code,"load_raw","load_raw").expect("fail")
-
+            Ok((key_value, chunks))
         }
 
-        //load handle to the raw file
-        get_load_raw_module(py).getattr("load_raw").unwrap()
-                               .call1((filename,)).unwrap()
-    }
-    match true {
-        false => Err(RawFileError::Malformed),
-        true => Ok(spectra),
-    }
+        //match true {
+            //false => Err(Error::Overflow),//Err(RawFileError::Malformed),
+            //false => Err(arrow2::error::Error::OutOfSpec),
+        //    true => Ok(spectra),
+       // }
+       //println!("{:?}", spectra[0]);
+       println!("number of spectra {}", spectra.len());
+       return spectra
 }
 }

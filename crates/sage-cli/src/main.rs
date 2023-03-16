@@ -406,8 +406,9 @@ impl Runner {
                 .collect::<Vec<_>>();
                 Ok(self.search_processed_spectra(scorer, spectra))
 
-       } else if path.as_ref().to_string().split('.').last().unwrap() == "raw".to_string() {
-            let spectra = sage_cloudpath::read_raw(&path.as_ref().to_string())?
+       } else if path.as_ref().to_string().split('.').last().unwrap() == "arrow".to_string() {
+            info!("here is the path {:?}", path.as_ref().to_string());
+            let spectra = sage_cloudpath::read_raw(&path.as_ref().to_string())
                 .into_par_iter()
                 .map(|spec| sp.process(spec))
                 .collect::<Vec<_>>();
@@ -441,9 +442,11 @@ impl Runner {
             .map(|filepath| 
                 {
                     //Is the file a raw file or an mzML
-                    if filepath.split('.').last().unwrap() == "raw"{
-                        sage_cloudpath::read_raw(filepath).expect("error reading reading raw")
+                    if filepath.split('.').last().unwrap() == "arrow"{
+                        println!("arrow file it is ! {}",filepath);
+                        sage_cloudpath::read_raw(filepath)//.expect("error reading reading raw")
                     } else if filepath.split('.').last().unwrap() == "mzML"{
+                        println!("mzMLfile it is ! {}",filepath);
                         sage_cloudpath::read_mzml(filepath).expect("error reading mzML")
                     } else {
                         sage_cloudpath::read_mzml(filepath).expect("")

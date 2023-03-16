@@ -21,7 +21,6 @@ rayon = "1.5"
 regex = "1.6"
 serde = { version="1.0", features = ["derive"] }
 quick-xml = { version = "0.25", features = ["async-tokio"] }
-pyo3 = { version = "*"}
 arrow2 = {version = "0.16.0", features = ["io_ipc"]}
 
 [dev-dependencies]
