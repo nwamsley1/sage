@@ -398,7 +398,7 @@ impl Runner {
         );
 
         //Decide if file is .mzML or .raw. Return an error if neither. 
-        if path.as_ref().to_string().split('.').last().unwrap() == ".mzML".to_string() {
+        if path.as_ref().to_string().split('.').last().unwrap() == "mzML".to_string() {
             info!("here is the path {:?}", path.as_ref().to_string());
             let spectra = sage_cloudpath::read_mzml(&path)?
                 .into_par_iter()
@@ -406,7 +406,7 @@ impl Runner {
                 .collect::<Vec<_>>();
                 Ok(self.search_processed_spectra(scorer, spectra))
 
-       } else if path.as_ref().to_string().split('.').last().unwrap() == ".raw".to_string() {
+       } else if path.as_ref().to_string().split('.').last().unwrap() == "raw".to_string() {
             let spectra = sage_cloudpath::read_raw(&path.as_ref().to_string())?
                 .into_par_iter()
                 .map(|spec| sp.process(spec))

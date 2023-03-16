@@ -104,21 +104,20 @@ impl RawFileReader {
     //    }
    // }
     pub fn parse(filename: &String) -> Result<Vec<Spectrum>, RawFileError>{
-        println!("This is the filename {:?}", filename);
+        println!("{:?}", filename);
         pyo3::prepare_freethreaded_python();
         //env::set_var("RUST_BACKTRACE", "full");
         let spectra: Vec<Spectrum> = Python::with_gil(|py| {
 
             //Load python module that uses fisher_py to load the 
             //Thermo.CommonCore Dll's into python
-            println!("yikes!");
+
             //let _raw_handle: &PyAny = get_raw_handle("HELA_uPAC_200cm_20221211_04.raw", py);
             
             //et _raw_handle: &PyAny = get_raw_handle("MA4365_FFPE_HPVpos_08_071522.raw", py);
             //let _raw_handle: &PyAny = get_raw_handle(&filename, py);
-            let filename = "/Users/n.t.wamsley/Projects/SAGE_TESTING/MA4358_FFPE_HPVpos_01_071522.raw".to_string();
-            let _raw_handle: &PyAny = get_raw_handle(&filename, py);
-            println!("mistake was not on line 88");
+            //let filename = "/Users/n.t.wamsley/Projects/SAGE_TESTING/MA4358_FFPE_HPVpos_01_071522.raw".to_string();
+            let _raw_handle: &PyAny = get_raw_handle(filename, py);
             //Get first and last scan numbers
             let first_scan_number: u32 = _raw_handle.getattr("run_header_ex")
             .unwrap().getattr("first_spectrum").unwrap().downcast::<PyLong>().unwrap().extract().unwrap();
@@ -175,9 +174,10 @@ impl RawFileReader {
         .unwrap().call1((scan_identifier,)).unwrap(); 
         let start = Instant::now();
         let centroid_stream: &PyAny = _raw_handle.getattr("get_centroid_stream").unwrap().call1((scan_identifier, false)).unwrap();
+
         let io_time = Instant::now() - start;
 
-        println!("{:?}", io_time);
+        //println!("{:?}", io_time);
         spectrum.ms_level = scan_event.getattr("ms_order").unwrap()
         .getattr("value").unwrap().downcast::<PyLong>().unwrap().extract().unwrap();
 

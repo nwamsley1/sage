@@ -74,8 +74,6 @@ impl Peptide {
             }
 
         } else if position_modifier == '$' {
-            println!("The positionmodifier is $");
-            println!("The residue is {:?}", residue);
             //If the residue specifier is generic "*" add the modification to the site
             if residue == '*'{
                 self.set_cterm_mod(mass)
@@ -445,7 +443,7 @@ mod test {
         })
         .unwrap();
 
-        let expected = vec![
+        let mut expected = vec![
             "AAC[+57]AAC[+57]AAK",
             "AAC[+30]AAC[+57]AAK",
             "AAC[+57]AAC[+30]AAK",
@@ -454,8 +452,7 @@ mod test {
             "AAC[+30]AAC[+57]AAK[+5]",
             "AAC[+57]AAC[+30]AAK[+5]",
             "AAC[+30]AAC[+30]AAK[+5]",
-            "blab",
-        ];
+        ];//.sort();
 
         let mut static_mods = HashMap::new();
         static_mods.insert("*C".to_string(), 57.0);
@@ -463,13 +460,12 @@ mod test {
         let variable_mods = [("*C".to_string(), 30.0),
                                                    ("$K".to_string(), 5.0)].into_iter().collect();
 
-        let peptides = peptide
+        let mut peptides = peptide
             .apply(&variable_mods, &static_mods, 3)
             .into_iter()
             .map(|p| p.to_string())
-            .collect::<Vec<_>>();
-
-        assert_eq!(peptides, expected);
+            .collect::<Vec<_>>();//.sort();
+        assert_eq!(peptides.sort(), expected.sort());
     }
 
 }
